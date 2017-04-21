@@ -39,7 +39,8 @@ public:
 	double resourceUtilization;
 	vector< Interval > taskSchedule;
 	Host();
-	double admissionControl(Host *, Client *);
+	pair<bool, double> admissionControl(Host *, Client *);
+	void allocateResource();
 };
 
 Host::Host()
@@ -85,7 +86,7 @@ double calculateUtilization(vector<Interval> schedule)
 	return schedule.size()>0? usedResource/schedule[schedule.size()-1].right : 0;
 }
 
-Host::admissionControl(Client *client_list, int client_ID, bool setFlag)
+pair<bool,double> Host::admissionControl(Client *client_list, int client_ID, bool setFlag)
 {
 	//preprocessing of existing schedule for creating gaps to be filled by new task
 	//should use other algorithm which minimizes context switches
@@ -96,10 +97,10 @@ Host::admissionControl(Client *client_list, int client_ID, bool setFlag)
 		int endd = min(client.deadline - client.results_length/uplink_rate - client.results_length/client.downlink_rate,
 		t_departure - client.results_length/client.downlink_rate);
 		if(strt>=endd || endd-strt<client.task_length/f_residual) 
-			return calculateUtilization(taskSchedule);
+			return make_pair(false,calculateUtilization(taskSchedule));
 		Interval interval = new Interval(endd - client.task_length/f_residual, endd, client_ID, strt, endd);
 		taskSchedule.push_back(interval);
-		return calculateUtilization(taskSchedule);
+		return make_pair(true,calculateUtilization(taskSchedule));
 	}
 
 	vector<Interval> rightShifted;
@@ -134,7 +135,7 @@ Host::admissionControl(Client *client_list, int client_ID, bool setFlag)
 	//checking if it can fit or not
 	if(endd - client.task_length/f_residual < strt)
 	{		
-		return calculateUtilization(rightShifted);
+		return make_pair(false, calculateUtilization(rightShifted));
 	}
 	//creates list of gaps where task can be filled
 	//check this
@@ -147,7 +148,7 @@ Host::admissionControl(Client *client_list, int client_ID, bool setFlag)
 			else 
 				gapRight = endd;
 			continue;
-		}		`   
+		}   
 		gapLeft = rightShifted[i].right;
 		if(gapLeft<strt) 
 		{				
@@ -186,7 +187,7 @@ Host::admissionControl(Client *client_list, int client_ID, bool setFlag)
 		}
 		if(execTimeLeft>0) 
 		{		
-			return calculateUtilization(rightShifted);
+			return (false,calculateUtilization(rightShifted));
 		}
 		else 
 		{
@@ -198,7 +199,7 @@ Host::admissionControl(Client *client_list, int client_ID, bool setFlag)
 				this->taskSchedule = updatedSchedule;
 				this->resourceUtilization=calculateUtilization(updatedSchedule);
 			}
-			return calculateUtilization(updatedSchedule);
+			return (true,calculateUtilization(updatedSchedule));
 		}	
 	}
 	else 
@@ -217,9 +218,9 @@ double calculateMeanUtilization(Host * host_list)
 	return sum/H;
 }
 
-void allocateResource(int clientID, Client *client_list, Host host)
+void Host::allocateResource(int clientID, Client *client_list)
 {
-	host.admissionControl(client_list, clientID, 1);
+	admissionControl(client_list, clientID, 1);
 }
 
 
@@ -236,16 +237,15 @@ int main()
 	for(int j=0;j<H;j++)		
 		host_revenue[i][j]= 5 + host_list[j].host_rating /40.00 * (host_list[j].f_residual/100 + client_list[i].task_length);
 	double ETT[C][H], freqs[C][H], tau[C][H], utilities[C][H];
+	int unscheduledTasks=0;
 	for(int i=0;i<C;i++)
 	{
 		double meanUtilization = calculateMeanUtilization(host_list);
 		double maxUtility = INT_MIN, bestHost=-1;		
 		for(int j=0;j<H;j++)
 		{
-
 			resourceUtilization = host_list[j].admissionControl(client_list, i, 0);
-
-			utilities[i][j]=(cost_client[i]-host_revenue[i][j])*host_list[j].host_rating*(1+resourceUtilization - meanUtilization);
+			utilities[i][j]=(cost_client[i]-host_revenue[i][j])*host_list[j].host_rating/(resourceUtilization==meanUtilization? 0.001 : max(0.001,abs(resourceUtilization - meanUtilization))); //can compare 3 different utilities
 			if(utilities[i][j] > maxUtility)
 			{
 				maxUtility = utilities[i][j];
@@ -260,8 +260,14 @@ int main()
 			// utilities[i][j] = (cost_client[i]-host_revenue[i][j])*host_list[j].host_rating*(client_list[i].deadline - ETT[i][j]);
 			// cout<<cost_client[i]<<" "<<host_revenue[i][j]<<"\n";
 		}
-		allocateResource(client_list[i], bestHost);
-
+		if(bestHost==-1)
+			unscheduledTasks++;
+		else
+		{
+			host_list[bestHost].allocateResource(i, client_list);
+			profit+=cost_client[i]-host_revenue[i][bestHost];
+		}
 	}
+	cout<<
 	return 0;
 }
