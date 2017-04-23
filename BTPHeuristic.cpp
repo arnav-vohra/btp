@@ -50,13 +50,13 @@ Client::Client()
 {
 	isScheduled=false;
 	client_ID=clientCounter++;
-	task_length=random_num(50,500);				//bits
-	results_length=random_num(50,500);			//bits
-	t_arrival=random_num(0,250);				//seconds
+	task_length=random_num(500,2000);				//bits
+	results_length=random_num(500,4000);			//bits
+	t_arrival=random_num(0,50);				//seconds
 	deadline=t_arrival+random_num(20,50);			//seconds
 	t_departure=deadline + random_num(25,50);		//seconds
-	uplink_rate=random_num(40,200);				//bits per second
-	downlink_rate=random_num(80,400);			//bits per second
+	uplink_rate=random_num(100,200);				//bits per second
+	downlink_rate=random_num(200,800);			//bits per second
 }
 
 class Host
@@ -65,7 +65,7 @@ public:
 	int host_ID;
 	double f_residual;			//bits per second
 	double t_arrival;			//seconds
-	double t_departure;		//seconds
+	double t_departure;			//seconds
 	double host_rating;
 	double uplink_rate, downlink_rate;	//bits per second
 	double resourceUtilization;
@@ -78,14 +78,14 @@ public:
 Host::Host()
 {
 	host_ID=hostCounter++;
-	f_residual=random_num(50,150);
-	t_arrival=random_num(0,250);
-	t_departure=t_arrival+random_num(60,400);
+	f_residual=random_num(200,500);
+	t_arrival=random_num(0,50);
+	t_departure=t_arrival+random_num(20,50);
 	//host_rating=random_num(80,100)/100;
-	host_rating=1;
-	uplink_rate=random_num(40,200);
-	downlink_rate=random_num(80,400);
-	resourceUtilization=0;
+	host_rating=1.00;
+	uplink_rate=random_num(100,200);
+	downlink_rate=random_num(200,800);
+	resourceUtilization=0.00;
 	taskSchedule.resize(0);
 }
 
@@ -119,7 +119,10 @@ pair<bool,double> Host::admissionControl(vector<Client> client_list, int client_
 			return make_pair(false,calculateUtilization(taskSchedule));
 		Interval interval = Interval(endd - client.task_length/f_residual, endd, client_ID, strt, endd);
 		if(setFlag==true)
+		{
 			taskSchedule.push_back(interval);
+			resourceUtilization=calculateUtilization(taskSchedule);
+		}
 		return make_pair(true,calculateUtilization(taskSchedule));
 	}
 
@@ -275,13 +278,14 @@ int main()
 	vector<Host> host_list;
 	vector<Client> client_list;
 	srand(time(NULL));
-	ofstream outfile;
-	outfile.open("unscheduledTasks_iterations.dat");
-	outfile<<"#Iterations\tUnscheduledTasks\n";
+	ofstream resUtil, prof, unscheduleds;
+	resUtil.open("meanResourceUtilization_iterations.dat");
+	prof.open("profit_iterations.dat");
+	unscheduleds.open("unscheduledTasks_iterations.dat");
 	int totalProfit=0, unscheduledTasks=0;
-	while(iterations++ < 1000)
+	while(iterations++ < 100)
 	{		
-		int h=random_num(1,4), c = random_num(5,10);	
+		int h=random_num(1,3), c = random_num(5,10);	
 		vector<Host> new_hosts, new_host_list;
 		vector<Client> new_clients, new_client_list;
 		new_hosts.resize(0);
@@ -298,8 +302,8 @@ int main()
 		{
 			for(int i=0;i<host_list.size();i++)
 			{				
-				host_list[i].t_arrival=max(0.00,host_list[i].t_arrival-100.00);
-				host_list[i].t_departure=max(0.00,host_list[i].t_departure-100.00);
+				host_list[i].t_arrival=max(0.00,host_list[i].t_arrival-10.00);
+				host_list[i].t_departure=max(0.00,host_list[i].t_departure-10.00);
 				if(host_list[i].t_departure==0.00) continue;				
 				//correction of taskSchedule
 				vector<Interval> newTaskSchedule;
@@ -308,10 +312,10 @@ int main()
 				for(int j=0;j<host_list[i].taskSchedule.size();j++)
 				{
 					Interval interval = host_list[i].taskSchedule[j];
-					interval.left = max(0.00, interval.left-100.00);
-					interval.right= max(0.00, interval.right-100.00);
-					interval.rangeLeft=max(0.00, interval.rangeLeft-100.00);
-					interval.rangeRight=max(0.00, interval.rangeRight-100.00);
+					interval.left = max(0.00, interval.left-10.00);
+					interval.right= max(0.00, interval.right-10.00);
+					interval.rangeLeft=max(0.00, interval.rangeLeft-10.00);
+					interval.rangeRight=max(0.00, interval.rangeRight-10.00);
 					if(interval.right==0.00) continue;
 					newTaskSchedule.push_back(interval);
 				}
@@ -338,9 +342,9 @@ int main()
 			{
 				if(client_list[i].isScheduled==false) 
 				{				
-					client_list[i].t_arrival=max(0.00,client_list[i].t_arrival-100.00);
-					client_list[i].t_departure=max(0.00,client_list[i].t_departure-100.00);
-					client_list[i].deadline=max(0.00,client_list[i].deadline-100.00);
+					client_list[i].t_arrival=max(0.00,client_list[i].t_arrival-10.00);
+					client_list[i].t_departure=max(0.00,client_list[i].t_departure-10.00);
+					client_list[i].deadline=max(0.00,client_list[i].deadline-10.00);
 					if(client_list[i].t_departure==0.00 || client_list[i].deadline==0.00) 
 					{
 						unscheduledTasks++;						
@@ -392,7 +396,7 @@ int main()
 			cost_client[i]=10+(client_list[i].task_length)/ (client_list[i].deadline - client_list[i].t_arrival);
 		for(int i=0;i<C;i++)
 		for(int j=0;j<H;j++)		
-			host_revenue[i][j]= 5 + host_list[j].host_rating /40.00 * (host_list[j].f_residual/100 + client_list[i].task_length);
+			host_revenue[i][j]= 5 + (host_list[j].host_rating /50.00) * (host_list[j].f_residual/100 + client_list[i].task_length);
 		double utilities[C][H];
 		double profit=0;
 		for(int i=0;i<C;i++)
@@ -444,8 +448,12 @@ int main()
 			}
 		}
 		totalProfit+=profit;
-		outfile<<iterations<<"\t"<<unscheduledTasks<<endl;		
+		resUtil<<iterations<<"\t"<<calculateMeanUtilization(host_list)<<endl;	
+		prof<<iterations<<"\t"<<totalProfit<<endl;	
+		unscheduleds<<iterations<<"\t"<<unscheduledTasks<<endl;
 	}
-	outfile.close();
+	resUtil.close();
+	prof.close();
+	unscheduleds.close();
 	return 0;
 }
