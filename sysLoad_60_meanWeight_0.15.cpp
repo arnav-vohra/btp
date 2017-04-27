@@ -361,7 +361,20 @@ void Host::allocateResource(int clientID, vector<Client> &client_list)
 //may or may not consider switching of tasks
 //may or may not consider minimization of context switches
 
-//void constructNewLists()
+
+double calculateFairness(vector<Host> host_list)
+{
+	double fairness=0.00, sum=0.00, denom=0.00;
+	for(int i=0;i<host_list.size();i++)
+	{
+		double util = calculateUtilization(host_list[i].taskSchedule, host_list[i].t_departure);
+		sum+=util;
+		denom+=util*util;
+	}
+	denom *=host_list.size();
+	sum *= sum;
+	return denom==0.00? 1.00:sum/denom;
+}
 
 int main()
 {
@@ -369,16 +382,16 @@ int main()
 	vector<Host> host_list;
 	vector<Client> client_list;
 	srand(time(NULL));
-	ofstream resUtil, prof, unscheduleds, datapoint;
+	ofstream resUtil, unscheduleds, datapoint, fairness;
 	resUtil.open("meanResourceUtilization_iterations.dat");
-	prof.open("profit_iterations.dat");
 	unscheduleds.open("unscheduledTasks_iterations.dat");
 	datapoint.open("datapoints.dat", ios_base::app);
+	fairness.open("fairness.dat");
 	double totalProfit=0;
 	int unscheduledTasks=0;
 	double totalUtilization=0.00, averageUtilization = 0.00;
 	double totalSystemLoad=0.00, meanSystemLoad=0.00;
-	double totalResUtil=0.00;
+	double totalResUtil=0.00, totalFairness=0.00;
 	int h,c;
 	int targetIterations=0;
 	vector<Client> scheduledTasks; 	
@@ -635,20 +648,22 @@ int main()
 		totalProfit+=profit;
 		//resUtil<<iterations<<"\t"<<calculateMeanUtilization(host_list)<<endl;	
 		//resUtil<<systemLoad<<"\t"<<100.00*averageUtilization<<endl;	
-		resUtil<<100.00*systemLoad<<"\t"<<100.00*averageUtilization<<endl;	
-		prof<<100.00*systemLoad<<"\t"<<totalProfit<<endl;	
-		unscheduleds<<100.00*systemLoad<<"\t"<<unscheduledTasks<<endl;
-		if(systemLoad>=targetSystemLoad-0.1 && systemLoad<=targetSystemLoad +0.1 )
+		resUtil<<100.00*systemLoad<<"\t"<<100.00*averageUtilization<<endl;		
+		//unscheduleds<<100.00*systemLoad<<"\t"<<unscheduledTasks<<endl;
+		totalFairness += calculateFairness(host_list);
+		if(iterations>10.00 && systemLoad>=targetSystemLoad-0.3 && systemLoad<=targetSystemLoad +0.3 )
 		{
 			totalSystemLoad+=systemLoad;
 			totalResUtil+=100.00*averageUtilization;
 			targetIterations++;
 		}
 	}
-	//resUtil.close();
-	prof.close();
-	unscheduleds.close();
+	fairness<<100.00*totalFairness/iterations<<endl;
+	unscheduleds<<100.00*unscheduledTasks /clientCounter<<endl; 
 	datapoint<<100.00* totalSystemLoad/targetIterations<<" "<<totalResUtil/targetIterations <<endl;
 	datapoint.close();
+	resUtil.close();
+	fairness.close();
+	unscheduleds.close();
 	return 0;
 }
